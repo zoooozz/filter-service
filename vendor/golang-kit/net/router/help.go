@@ -12,7 +12,7 @@ import (
 
 var (
 	allowOriginHosts = []string{
-		".xxx.com",
+		".xxxx.com",
 	}
 )
 

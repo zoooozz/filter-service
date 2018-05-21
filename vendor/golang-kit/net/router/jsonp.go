@@ -13,6 +13,7 @@ func jsonp(c context.Context, bs []byte) []byte {
 		if cb := params.Get("callback"); cb != "" {
 			bs = []byte(fmt.Sprintf("%s(%s)", cb, bs))
 		}
+
 		if script := params.Get("script"); script == "script" {
 			resp.Header().Set("Content-Type", "text/html;charset=utf-8")
 			bs = []byte(fmt.Sprintf(

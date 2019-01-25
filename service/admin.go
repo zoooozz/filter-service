@@ -1,52 +1,55 @@
 package service
 
 import (
-	"context"
+	// "fmt"
+	// 	"context"
+	// 	"filter-service/model"
+	// 	"golang-kit/db/mysql"
+	"database/sql"
 	"filter-service/model"
-	"golang-kit/db/mysql"
 )
 
-func (s *service) Addkeyword(c context.Context, b *model.AddkeywordFrom, flag []string) (insertId int64, err error) {
+func (s *service) Addkeyword(content string, flag []string, state, level int64) (insertId int64, err error) {
+
 	var (
-		tx           *mysql.Tx
+		tx           *sql.Tx
 		keyword_id   int64
-		keyword      *model.KeywordContent
-		relationItem *model.AddkeywordFrom
+		list         *model.KeywordContent
+		relationItem *model.Relation
 	)
-
-	if tx, err = s.dao.Begin(c); err != nil {
+	if tx, err = s.dao.Begin(); err != nil {
 		return
 	}
 
-	if keyword, err = s.dao.GetBykeyword(c, b); err != nil {
+	if list, err = s.dao.GetBykeyword(content); err != nil {
 		return
 	}
-
-	if keyword == nil {
-		if keyword_id, err = s.dao.Addkeyword(c, tx, b); err != nil {
+	if list == nil {
+		if keyword_id, err = s.dao.Addkeyword(content, tx); err != nil {
 			tx.Rollback()
 			return
 		}
 	} else {
-		keyword_id = keyword.Id
+		keyword_id = list.Id
 	}
 
 	for _, flags := range flag {
-		relation := &model.AddkeywordFrom{
-			Flag:       flags,
-			Keyword_id: keyword_id,
-		}
-
-		if relationItem, err = s.dao.GetByrelation(c, relation); err != nil {
+		if relationItem, err = s.dao.GetByrelation(keyword_id, flags); err != nil {
 			return
 		}
 
 		if relationItem == nil {
-			if _, err = s.dao.Addrelation(c, tx, relation); err != nil {
+			if _, err = s.dao.Addrelation(keyword_id, state, level, flags, tx); err != nil {
+				tx.Rollback()
+				return
+			}
+		} else {
+			if _, err = s.dao.Updaterelation(relationItem.Id, state, tx); err != nil {
 				tx.Rollback()
 				return
 			}
 		}
+
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -56,51 +59,49 @@ func (s *service) Addkeyword(c context.Context, b *model.AddkeywordFrom, flag []
 	return
 }
 
-func (s *service) AdminList(c context.Context, content, flag string, pn, ps int64) (bs []*model.Keyword, count int64, err error) {
+func (s *service) adminKeywordList(content, flag string, state, level, page, pagesize int64) (rs []*model.Relation, count int64, err error) {
 
 	var (
-		_emplyRs = []*model.Keyword{}
+		_emplyRs = []*model.Relation{}
 	)
 
-	if count, err = s.dao.GetByrelationCount(c, flag, content); err != nil {
+	if count, err = s.dao.GetByrelationCount(content, flag, state, level); err != nil {
 		return
 	}
 
-	page := (pn - 1) * ps
-	if bs, err = s.dao.GetByrelationList(c, flag, content, page, ps); err != nil {
+	pn := (page - 1) * pagesize
+	if rs, err = s.dao.GetByrelationList(content, flag, state, level, pn, pagesize); err != nil {
 		return
 	}
 
-	if len(bs) == 0 {
-		bs = _emplyRs
+	if len(rs) == 0 {
+		rs = _emplyRs
 	}
 	return
 }
 
-func (s *service) BusinessList(c context.Context) (bs []*model.Business, err error) {
-	var (
-		_emplyRs = []*model.Business{}
-	)
+func (s *service) UpdateStatekeyword(id, state int64) (insertId int64, err error) {
 
-	if bs, err = s.dao.GetByBusinessList(c); err != nil {
+	if insertId, err = s.dao.UpdateStatekeyword(id, state); err != nil {
 		return
 	}
-	if len(bs) == 0 {
-		bs = _emplyRs
+
+	return
+}
+func (s *service) UpdateLevelkeyword(id, state int64) (insertId int64, err error) {
+
+	if insertId, err = s.dao.UpdateLevelkeyword(id, state); err != nil {
+		return
 	}
+
 	return
 }
 
-func (s *service) UpdateStatekeyword(c context.Context, state, id int64) (insertId int64, err error) {
-	if insertId, err = s.dao.UpdateStatekeyword(c, state, id); err != nil {
-		return
-	}
-	return
-}
+func (s *service) DelRelationkeyword(id int64) (insertId int64, err error) {
 
-func (s *service) UpdateInfokeyword(c context.Context, level, id int64) (insertId int64, err error) {
-	if insertId, err = s.dao.UpdateInfokeyword(c, level, id); err != nil {
+	if insertId, err = s.dao.DelRelationkeyword(id); err != nil {
 		return
 	}
+
 	return
 }

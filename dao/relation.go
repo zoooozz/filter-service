@@ -1,104 +1,160 @@
 package dao
 
 import (
-	"context"
 	"database/sql"
-	"filter-service/model"
 	"fmt"
-	"golang-kit/db/mysql"
-	"golang-kit/log"
+
+	"filter-service/model"
+	"github.com/donnie4w/go-logger/logger"
 )
 
 const (
-	_addrelationSQL          = "INSERT INTO relation (keyword_id,state,level,flag)VALUES(?,?,?,?)"
-	_uprelationSQL           = "UPDATE  relation SET state =? where id = ?"
-	_uprelationlevelSQL      = "UPDATE  relation SET level =? where id = ?"
-	_onerelationSQL          = "SELECT id,keyword_id,state,level,flag FROM relation WHERE keyword_id=? AND flag=?"
-	_allrelationListSQL      = "SELECT r.id,r.state,r.level,r.flag,k.content FROM relation as r LEFT JOIN keyword as k ON r.keyword_id = k.id WHERE r.flag = %s AND k.content like %s limit %d,%d"
-	_allrelationListCountSQL = "SELECT count(r.id) as count  FROM relation as r LEFT JOIN keyword as k ON r.keyword_id = k.id WHERE r.flag = %s AND k.content like %s"
-	_initrelationListSQL     = "SELECT r.id,r.state,r.level,r.flag,k.content FROM relation as r LEFT JOIN keyword as k ON r.keyword_id = k.id WHERE r.flag = %s"
+	_addrelationSQL     = "INSERT INTO relation (keyword_id,state,level,flag)VALUES(?,?,?,?)"
+	_uprelationSQL      = "UPDATE  relation SET state =? where id = ?"
+	_uprelationlevelSQL = "UPDATE  relation SET level =? where id = ?"
+	_delrelationSQL     = "DELETE FROM  relation where id = ?"
+	_onerelationSQL     = "SELECT id,keyword_id,state,level,flag FROM relation WHERE keyword_id=? AND flag=?"
+
+	_allrelationListSQL      = "SELECT r.id,r.state,r.level,r.flag,k.content FROM relation as r LEFT JOIN keyword as k ON r.keyword_id = k.id WHERE r.flag = %s AND r.state= %d and level = %d AND k.content like %s order by r.mtime desc limit %d,%d"
+	_allrelationListCountSQL = "SELECT count(r.id) as count  FROM relation as r LEFT JOIN keyword as k ON r.keyword_id = k.id WHERE r.flag = %s AND r.state= %d AND level = %d AND k.content like %s"
+
+	_initrelationListSQL = "SELECT r.id,r.state,r.level,r.flag,k.content FROM relation as r LEFT JOIN keyword as k ON r.keyword_id = k.id WHERE r.flag = %s"
 )
 
-//新增关键词关系
-func (d *Dao) Addrelation(c context.Context, tx *mysql.Tx, b *model.AddkeywordFrom) (insertId int64, err error) {
-	result, err := tx.Exec(_addrelationSQL, b.Keyword_id, b.State, b.Level, b.Flag)
+func (d *Dao) Addrelation(keyword_id, state, level int64, flags string, tx *sql.Tx) (insertId int64, err error) {
+
+	model, err := tx.Prepare(_addrelationSQL)
 	if err != nil {
-		log.Error("d.db.Exec(%+v) error(%v)", b, err)
+		return
 	}
-	return result.RowsAffected()
+	result, err := model.Exec(keyword_id, state, level, flags)
+	insertId, err = result.LastInsertId()
+
+	if err != nil {
+		return
+	}
+	return
+
 }
 
-//获取关系
-func (d *Dao) GetByrelation(c context.Context, b *model.AddkeywordFrom) (t *model.AddkeywordFrom, err error) {
-	row := d.db.QueryRow(c, _onerelationSQL, b.Keyword_id, b.Flag)
-	t = &model.AddkeywordFrom{}
-	if err = row.Scan(&t.Id, &t.Keyword_id, &t.State, &t.Level, &t.Flag); err != nil {
+func (d *Dao) Updaterelation(id, state int64, tx *sql.Tx) (insertId int64, err error) {
+
+	model, err := tx.Prepare(_uprelationSQL)
+	if err != nil {
+		return
+	}
+
+	result, err := model.Exec(state, id)
+	insertId, err = result.LastInsertId()
+
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (d *Dao) UpdateStatekeyword(id, state int64) (insertId int64, err error) {
+
+	model, err := d.db.Prepare(_uprelationSQL)
+	if err != nil {
+		return
+	}
+
+	result, err := model.Exec(state, id)
+	insertId, err = result.LastInsertId()
+
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (d *Dao) UpdateLevelkeyword(id, level int64) (insertId int64, err error) {
+
+	model, err := d.db.Prepare(_uprelationlevelSQL)
+	if err != nil {
+		return
+	}
+
+	result, err := model.Exec(level, id)
+	insertId, err = result.LastInsertId()
+
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (d *Dao) GetByrelation(keyword_id int64, flag string) (r *model.Relation, err error) {
+
+	r = &model.Relation{}
+	row := d.db.QueryRow(_onerelationSQL, keyword_id, flag)
+	if err = row.Scan(
+		&r.Id,
+		&r.KeywordId,
+		&r.State,
+		&r.Level,
+		&r.Flag,
+	); err != nil {
 		if err == sql.ErrNoRows {
+			r = nil
 			err = nil
-			t = nil
-			return
-		} else {
-			log.Error("rows.Scan(%d) rows.Scan error(%v)", &t.Content, err)
-			return
 		}
+		logger.Info(err)
 	}
 	return
 }
 
-//获取列表数量
-func (d *Dao) GetByrelationCount(c context.Context, flag, content string) (count int64, err error) {
+func (d *Dao) DelRelationkeyword(id int64) (insertId int64, err error) {
 
-	row := d.db.QueryRow(c, fmt.Sprintf(_allrelationListCountSQL, fmt.Sprintf("\"%s\"", flag), "'%"+content+"%'"))
+	model, err := d.db.Prepare(_delrelationSQL)
+	if err != nil {
+		return
+	}
+
+	result, err := model.Exec(id)
+	insertId, err = result.LastInsertId()
+
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (d *Dao) GetByrelationCount(content, flag string, state, level int64) (count int64, err error) {
+
+	row := d.db.QueryRow(fmt.Sprintf(_allrelationListCountSQL, fmt.Sprintf("\"%s\"", flag), state, level, "'%"+content+"%'"))
 	if err = row.Scan(&count); err != nil {
-		log.Error("row.Scan() err(%v)", err)
+		return
 	}
 	return
 }
 
-//获取列表
-func (d *Dao) GetByrelationList(c context.Context, flag, content string, pn, ps int64) (ts []*model.Keyword, err error) {
+// //获取列表
+func (d *Dao) GetByrelationList(content, flag string, state, level, page, pagesize int64) (rs []*model.Relation, err error) {
 
-	rows, err := d.db.Query(c, fmt.Sprintf(_allrelationListSQL, fmt.Sprintf("\"%s\"", flag), "'%"+content+"%'", pn, ps))
+	rows, err := d.db.Query(fmt.Sprintf(_allrelationListSQL, fmt.Sprintf("\"%s\"", flag), state, level, "'%"+content+"%'", page, pagesize))
+
 	for rows.Next() {
-		t := &model.Keyword{}
-		if err = rows.Scan(&t.Id, &t.State, &t.Level, &t.Flag, &t.Content); err != nil {
-			log.Error("rows.Scan(%d) rows.Scan error(%v)", t, err)
+		r := &model.Relation{}
+		if err = rows.Scan(&r.Id, &r.State, &r.Level, &r.Flag, &r.Content); err != nil {
 			return
 		}
-		ts = append(ts, t)
+		rs = append(rs, r)
 	}
 	return
 }
 
-//更新关系状态
-func (d *Dao) UpdateStatekeyword(c context.Context, state, id int64) (insertId int64, err error) {
-	result, err := d.db.Exec(c, _uprelationSQL, state, id)
-	if err != nil {
-		log.Error("d.db.Exec(%+v) error(%v)", id, err)
-	}
-	return result.RowsAffected()
-}
+// //获取所有关键词
+func (d *Dao) GetByrelationKeyword(flag string) (rs []*model.Relation, err error) {
 
-//更新关系信息
-func (d *Dao) UpdateInfokeyword(c context.Context, level, id int64) (insertId int64, err error) {
-	result, err := d.db.Exec(c, _uprelationlevelSQL, level, id)
-	if err != nil {
-		log.Error("d.db.Exec(%+v) error(%v)", id, err)
-	}
-	return result.RowsAffected()
-}
-
-//获取所有关键词
-func (d *Dao) GetByrelationKeyword(c context.Context, flag string) (ts []*model.Keyword, err error) {
-
-	rows, err := d.db.Query(c, fmt.Sprintf(_initrelationListSQL, fmt.Sprintf("\"%s\"", flag)))
+	rows, err := d.db.Query(fmt.Sprintf(_initrelationListSQL, fmt.Sprintf("\"%s\"", flag)))
 	for rows.Next() {
-		t := &model.Keyword{}
-		if err = rows.Scan(&t.Id, &t.State, &t.Level, &t.Flag, &t.Content); err != nil {
-			log.Error("rows.Scan(%d) rows.Scan error(%v)", t, err)
+		r := &model.Relation{}
+		if err = rows.Scan(&r.Id, &r.State, &r.Level, &r.Flag, &r.Content); err != nil {
 			return
 		}
-		ts = append(ts, t)
+		rs = append(rs, r)
 	}
 	return
 }

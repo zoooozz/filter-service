@@ -3,25 +3,38 @@ package config
 import (
 	"flag"
 	"github.com/BurntSushi/toml"
-	"golang-kit/config"
-	"golang-kit/time"
 )
 
 type Config struct {
-	Common *config.Common
-	Log    *config.Log
-	Router *config.Router
-	Mysql  *Mysql
-	Mhttp  *config.Mhttp
-	Time   *Time
+	Name     string
+	Database *Database
+	Http     *Http
+	Log      *Log
 }
 
-type Time struct {
-	Tick time.Duration
+type Http struct {
+	Port int
 }
 
 type Mysql struct {
-	Master *config.Mysql
+	Addr   string
+	Active int
+	Idle   int
+}
+
+type Database struct {
+	Master *Mysql
+}
+
+type RedisConn struct {
+	Addr string
+	Auth string
+	Db   int
+}
+
+type Log struct {
+	Addr string
+	Dir  string
 }
 
 var (
@@ -30,7 +43,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&ConfPath, "conf", "filter.toml", "config path")
+	flag.StringVar(&ConfPath, "conf", "dev.toml", "config path")
 }
 
 func Init() (err error) {

@@ -1,18 +1,21 @@
 package service
 
 import (
-	"golang-kit/net/router"
+	"github.com/labstack/echo"
 )
 
-func initInner(r *router.Router) {
-	r.GuestPost("/x/internal/filter/keyword/add", internalAddkeyword)
-	r.GuestPost("/x/internal/filter/keyword/state", internalUpdateStatekeyword)
-	r.GuestPost("/x/internal/filter/keyword/edit", internalUpdateInfokeyword)
-	r.GuestGet("/x/internal/filter/keyword/list", internalList)
-	r.GuestGet("/x/internal/filter/business/list", internalBusinessList)
+func initRouter(e *echo.Echo) {
+	e.GET("/", index)
+	outter := e.Group("/x/outter", HeaderVerifier())
+	{
+		outter.POST("/filter/list", list)
+	}
 
-}
-
-func initOutter(r *router.Router) {
-	r.GuestPost("/x/outter/filter/list", list)
+	internal := e.Group("/x/internal", HeaderVerifier())
+	{
+		internal.POST("/filter/keyword/add", addKeyword)
+		internal.POST("/filter/keyword/edit", editKeyword)
+		internal.POST("/filter/keyword/del", delKeyword)
+		internal.GET("/filter/keyword/list", adminKeywordList)
+	}
 }

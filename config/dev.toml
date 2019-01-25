@@ -1,0 +1,15 @@
+
+name = "filter-service"
+
+[http]
+    port = 9520
+
+[database]
+    [database.master]
+        addr = "root:root@tcp(127.0.0.1:3306)/filter?timeout=5s&readTimeout=5s&writeTimeout=5s&parseTime=true&loc=Local&charset=utf8,utf8mb4"
+        active = 2
+        idle = 2
+[log]
+    addr = "/tmp"
+    dir = "filter-search.log"
+

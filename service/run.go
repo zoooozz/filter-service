@@ -2,64 +2,60 @@ package service
 
 import (
 	"filter-service/config"
-	kitCfg "golang-kit/config"
-	"golang-kit/log"
-	"golang-kit/net/httpsvr"
-	"golang-kit/net/pprof"
-	"golang-kit/net/router"
-	"golang-kit/service/identify"
-	"net/http"
+	"filter-service/dao"
+	"filter-service/model"
+	"fmt"
+	"github.com/donnie4w/go-logger/logger"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
+	"time"
 )
 
 var (
-	// server
 	svr *service
 )
 
-func Run(c *config.Config) (err error) {
+type service struct {
+	dao         *dao.Dao
+	businessMap map[string]struct{}
+	filterMap   map[string]*model.Filter
+}
 
-	if svr, err = NewService(config.Conf); err != nil {
-		return
+func Run() (err error) {
+	e := echo.New()
+	e.Logger.SetLevel(99)
+	e.Use(middleware.Recover())
+	if svr, err = initService(); err != nil {
+		panic(err)
 	}
-
-	// run pprof
-	if err = pprof.Init(c.Mhttp.Pprof); err != nil {
-		return
-	}
-
-	// run http
-	if err = runHttp(c.Mhttp, c.Router); err != nil {
-		return
-	}
+	initRouter(e)
+	initLog()
+	e.Start(":" + fmt.Sprintf("%d", config.Conf.Http.Port))
 	return
 }
 
-// http
-func runHttp(c *kitCfg.Mhttp, cr *kitCfg.Router) (err error) {
-	// internal
-	inMux := http.NewServeMux()
-	iden := identify.NewIdentify(cr.Indentify)
-	if err != nil {
-		log.Error("identify.NewIdentify2 error(%v)", err)
-		return
-	}
+func initLog() {
+	logger.SetConsole(false)
+	logger.SetRollingDaily(config.Conf.Log.Addr, config.Conf.Log.Dir)
+	logger.SetLevel(logger.INFO)
+}
 
-	inRou := router.NewRouter(cr, iden, inMux)
-	initInner(inRou)
-	if err = httpsvr.RunHttp(c.Inner, inMux); err != nil {
-		log.Error("httpsvr.RunHttp error(%v)", err)
+func initService() (s *service, err error) {
+	s = &service{}
+	if s.dao, err = dao.NewDao(config.Conf); err != nil {
 		return
 	}
-
-	// outter
-	outMux := http.NewServeMux()
-	outRou := router.NewRouter(cr, iden, outMux)
-	initOutter(outRou)
-	if err = httpsvr.RunHttp(c.Outter, outMux); err != nil {
-		log.Error("RunOutterHttp error(%v)", err)
-		return
-	} else {
-		log.Info("RunOutterHttp success port:%d", c.Outter.Port)
-	}
+	//加载项在这边
+	s.initLoadBusiness()
+	s.initLoadKeyword()
+	go s.loadKeyword()
 	return
+}
+
+func (s *service) loadKeyword() {
+	for {
+		time.Sleep(5000 * time.Millisecond)
+
+		s.initLoadKeyword()
+	}
 }

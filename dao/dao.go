@@ -1,34 +1,46 @@
 package dao
 
 import (
-	"context"
+	xsql "database/sql"
 	"filter-service/config"
-	"golang-kit/db/mysql"
-	"golang-kit/log"
+	"github.com/donnie4w/go-logger/logger"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 type Dao struct {
 	conf *config.Config
-	db   *mysql.DB
+	db   *sqlx.DB
 }
 
 func NewDao(c *config.Config) (d *Dao, err error) {
-	var (
-		db *mysql.DB
-	)
 	d = &Dao{
 		conf: c,
 	}
+	db, err := connectDB(c.Database.Master.Addr)
+	d.db = db
 
-	if db, err = mysql.NewMysql(c.Mysql.Master); err != nil {
-		log.Error("mysql.NewMysql error(%v)", err)
-		return
-	} else {
-		d.db = db
+	return
+
+}
+
+func connectDB(addr string) (db *sqlx.DB, err error) {
+	db, err = sqlx.Open("mysql", addr)
+	if err != nil {
+		logger.Error(err)
+	}
+	if err := db.Ping(); err != nil {
+		logger.Error(err)
 	}
 	return
 }
 
-func (d *Dao) Begin(c context.Context) (tx *mysql.Tx, err error) {
-	return d.db.Begin(c)
+func (d *Dao) Begin() (txi *xsql.Tx, err error) {
+
+	txi, err = d.db.Begin()
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	return
 }

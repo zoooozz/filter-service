@@ -2,185 +2,230 @@ package service
 
 import (
 	"filter-service/model"
-	"github.com/mholt/binding"
-	"golang-kit/ecode"
-	"golang-kit/log"
-	"golang-kit/net/context"
+	"github.com/labstack/echo"
 	"strconv"
 	"strings"
 )
 
-func internalAddkeyword(c context.Context) {
-	var (
-		err  error
-		flag []string
-	)
-	result := c.Result()
-	form := &model.AddkeywordFrom{}
-	if err = binding.Bind(c.Request(), form); err != nil {
-		log.Error("binding.Bind error(%v)", err)
-		err = ecode.RequestErr
-		result["code"] = err
-		return
-	}
+func addKeyword(c echo.Context) error {
 
-	params := c.Request().Form
-	flagStr := params.Get("flag")
+	var (
+		flag    []string
+		level   int64
+		state   int64
+		err     error
+		content string
+	)
+	flagStr := c.FormValue("flag")
 	if flagStr == "" {
 		flag = []string{"all"}
 	} else {
 		flag = strings.Split(flagStr, ",")
 	}
 
-	levelStr := params.Get("level")
+	levelStr := c.FormValue("level")
 	if levelStr != "" {
-		if form.Level, err = strconv.ParseInt(levelStr, 10, 64); err != nil {
-			log.Error("strconv.ParseInt(%s) error(%v)", levelStr, err)
-			result["code"] = ecode.RequestErr
-			return
+		if level, err = strconv.ParseInt(levelStr, 10, 64); err != nil {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
 		}
+
+		if level != model.LevelLight && level != model.LevelSevere {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+	} else {
+		level = 1
 	}
-	stateStr := params.Get("state")
+
+	stateStr := c.FormValue("state")
 	if stateStr != "" {
-		if form.Level, err = strconv.ParseInt(stateStr, 10, 64); err != nil {
-			log.Error("strconv.ParseInt(%s) error(%v)", stateStr, err)
-			result["code"] = ecode.RequestErr
-			return
+
+		if state, err = strconv.ParseInt(stateStr, 10, 64); err != nil {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
 		}
+
+		if state != model.StateOpen && state != model.StateClose {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+	} else {
+		state = 1
 	}
 
-	if _, err = svr.Addkeyword(c, form, flag); err != nil {
-		result["code"] = err
-		return
+	content = c.FormValue("content")
+	if len([]rune(content)) > 100 || len(content) < 1 {
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
 	}
-	result["code"] = ecode.OK
-	return
 
+	_, err = svr.Addkeyword(content, flag, state, level)
+	if err != nil {
+		return c.JSON(model.OutputRet(model.RetErr))
+	}
+
+	result := map[string]interface{}{
+		"list": "",
+	}
+	return c.JSON(model.OutputRet(model.Success, result))
 }
 
-func internalList(c context.Context) {
-	var (
-		err     error
-		flag    string
-		content string
-		pn      int64
-		ps      int64
-		bs      []*model.Keyword
-		count   int64
-	)
-	result := c.Result()
-	params := c.Request().Form
-	flag = params.Get("flag")
-	if flag == "" {
-		result["code"] = ecode.RequestErr
-		return
-	}
-	content = params.Get("content")
+func editKeyword(c echo.Context) error {
 
-	psStr := params.Get("ps")
-	pnStr := params.Get("pn")
-
-	pn, err = strconv.ParseInt(pnStr, 10, 64)
-	if err != nil || pn < 1 {
-		pn = 1
-	}
-	ps, err = strconv.ParseInt(psStr, 10, 64)
-	if err != nil || ps < 0 || ps > 200 {
-		ps = 100
-	}
-
-	if bs, count, err = svr.AdminList(c, content, flag, pn, ps); err != nil {
-		result["code"] = err
-		return
-	}
-	result["data"] = map[string]interface{}{
-		"bs":    bs,
-		"count": count,
-	}
-	result["code"] = ecode.OK
-	return
-}
-
-func internalBusinessList(c context.Context) {
-	var (
-		err error
-		bs  []*model.Business
-	)
-	result := c.Result()
-	if bs, err = svr.BusinessList(c); err != nil {
-		result["code"] = err
-		return
-	}
-	result["data"] = map[string]interface{}{
-		"bs": bs,
-	}
-
-	result["code"] = ecode.OK
-	return
-}
-
-func internalUpdateStatekeyword(c context.Context) {
 	var (
 		err   error
 		state int64
-		id    int64
-	)
-	result := c.Result()
-	params := c.Request().Form
-	stateStr := params.Get("state")
-	idStr := params.Get("id")
-
-	if state, err = strconv.ParseInt(stateStr, 10, 64); err != nil {
-		log.Error("strconv.ParseInt(%s) error(%v)", stateStr, err)
-		result["code"] = ecode.RequestErr
-		return
-	}
-
-	if id, err = strconv.ParseInt(idStr, 10, 64); err != nil {
-		log.Error("strconv.ParseInt(%s) error(%v)", idStr, err)
-		result["code"] = ecode.RequestErr
-		return
-	}
-
-	if state != 0 && state != 1 {
-		result["code"] = ecode.RequestErr
-		return
-	}
-	if _, err = svr.UpdateStatekeyword(c, state, id); err != nil {
-		result["code"] = err
-		return
-	}
-	result["code"] = ecode.OK
-	return
-}
-
-func internalUpdateInfokeyword(c context.Context) {
-	var (
-		err   error
 		level int64
 		id    int64
 	)
-	result := c.Result()
-	params := c.Request().Form
-	levelStr := params.Get("level")
-	idStr := params.Get("id")
+	stateStr := c.FormValue("state")
+	levelStr := c.FormValue("level")
+	idStr := c.FormValue("id")
 
-	if level, err = strconv.ParseInt(levelStr, 10, 64); err != nil {
-		log.Error("strconv.ParseInt(%s) error(%v)", levelStr, err)
-		result["code"] = ecode.RequestErr
-		return
+	if stateStr != "" {
+		if state, err = strconv.ParseInt(stateStr, 10, 64); err != nil {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+		if state != model.StateClose && state != model.StateOpen {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+	}
+
+	if levelStr != "" {
+		if level, err = strconv.ParseInt(levelStr, 10, 64); err != nil {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+		if level != model.LevelLight && level != model.LevelSevere {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+	}
+
+	if stateStr == "" && levelStr == "" {
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
 	}
 
 	if id, err = strconv.ParseInt(idStr, 10, 64); err != nil {
-		log.Error("strconv.ParseInt(%s) error(%v)", idStr, err)
-		result["code"] = ecode.RequestErr
-		return
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
 	}
 
-	if _, err = svr.UpdateInfokeyword(c, level, id); err != nil {
-		result["code"] = err
-		return
+	if stateStr != "" {
+		_, err = svr.UpdateStatekeyword(id, state)
 	}
-	result["code"] = ecode.OK
-	return
+
+	if levelStr != "" {
+		_, err = svr.UpdateLevelkeyword(id, level)
+
+	}
+	if err != nil {
+		return c.JSON(model.OutputRet(model.RetErr))
+	}
+
+	result := map[string]interface{}{
+		"list": "",
+	}
+	return c.JSON(model.OutputRet(model.Success, result))
+
+}
+
+func delKeyword(c echo.Context) error {
+	var (
+		err error
+		id  int64
+	)
+
+	idStr := c.FormValue("id")
+	if id, err = strconv.ParseInt(idStr, 10, 64); err != nil {
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
+	}
+
+	_, err = svr.DelRelationkeyword(id)
+
+	if err != nil {
+		return c.JSON(model.OutputRet(model.RetErr))
+	}
+
+	result := map[string]interface{}{
+		"list": "",
+	}
+	return c.JSON(model.OutputRet(model.Success, result))
+}
+
+func adminKeywordList(c echo.Context) error {
+
+	var (
+		err      error
+		flag     string
+		content  string
+		level    int64
+		state    int64
+		page     int64
+		pagesize int64
+		ret      []*model.Relation
+		count    int64
+	)
+
+	flag = c.FormValue("flag")
+	pagesizeStr := c.FormValue("pagesize")
+	pageStr := c.FormValue("page")
+
+	if flag == "" {
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
+	}
+	content = c.FormValue("content")
+	if flag == "" {
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
+	}
+
+	levelStr := c.FormValue("level")
+	if levelStr != "" {
+		if level, err = strconv.ParseInt(levelStr, 10, 64); err != nil {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+		if level != model.LevelLight && level != model.LevelSevere {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+	} else {
+		level = 1
+	}
+
+	stateStr := c.FormValue("state")
+	if stateStr != "" {
+
+		if state, err = strconv.ParseInt(stateStr, 10, 64); err != nil {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+		if state != model.StateOpen && state != model.StateClose {
+			return c.JSON(model.OutputRet(model.Notdefinitionparams))
+		}
+
+	} else {
+		state = 1
+	}
+
+	page, err = strconv.ParseInt(pageStr, 10, 64)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	pagesize, err = strconv.ParseInt(pagesizeStr, 10, 64)
+	if err != nil || pagesize < 0 || pagesize > 200 {
+		pagesize = 100
+	}
+
+	if ret, count, err = svr.adminKeywordList(content, flag, state, level, page, pagesize); err != nil {
+		return c.JSON(model.OutputRet(model.RetErr))
+
+	}
+
+	if err != nil {
+		return c.JSON(model.OutputRet(model.RetErr))
+	}
+
+	result := map[string]interface{}{
+		"list":  ret,
+		"count": count,
+	}
+	return c.JSON(model.OutputRet(model.Success, result))
+
 }

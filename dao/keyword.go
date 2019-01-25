@@ -1,11 +1,9 @@
 package dao
 
 import (
-	"context"
 	"database/sql"
 	"filter-service/model"
-	"golang-kit/db/mysql"
-	"golang-kit/log"
+	"github.com/donnie4w/go-logger/logger"
 )
 
 const (
@@ -13,27 +11,35 @@ const (
 	_onekeywordSQL = "SELECT id,content FROM keyword WHERE content=?"
 )
 
-func (d *Dao) Addkeyword(c context.Context, tx *mysql.Tx, b *model.AddkeywordFrom) (insertId int64, err error) {
-	result, err := tx.Exec(_addkeywordSQL, b.Content)
+func (d *Dao) Addkeyword(content string, tx *sql.Tx) (insertId int64, err error) {
+
+	model, err := tx.Prepare(_addkeywordSQL)
 	if err != nil {
-		log.Error("d.db.Exec(%+v) error(%v)", b, err)
+		return
 	}
-	return result.LastInsertId()
+	result, err := model.Exec(content)
+	insertId, err = result.LastInsertId()
+
+	if err != nil {
+		return
+	}
+	return
+
 }
 
-func (d *Dao) GetBykeyword(c context.Context, b *model.AddkeywordFrom) (t *model.KeywordContent, err error) {
-	row := d.db.QueryRow(c, _onekeywordSQL, b.Content)
-	t = &model.KeywordContent{}
+func (d *Dao) GetBykeyword(content string) (r *model.KeywordContent, err error) {
 
-	if err = row.Scan(&t.Id, &t.Content); err != nil {
+	r = &model.KeywordContent{}
+	row := d.db.QueryRow(_onekeywordSQL, content)
+	if err = row.Scan(
+		&r.Id,
+		&r.Content,
+	); err != nil {
 		if err == sql.ErrNoRows {
+			r = nil
 			err = nil
-			t = nil
-			return
-		} else {
-			log.Error("rows.Scan(%d) rows.Scan error(%v)", &t.Content, err)
-			return
 		}
+		logger.Info(err)
 	}
 	return
 }

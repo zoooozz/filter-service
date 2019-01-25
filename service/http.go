@@ -1,45 +1,40 @@
 package service
 
 import (
-	"golang-kit/ecode"
-	"golang-kit/log"
-	"golang-kit/net/context"
+	"filter-service/model"
+	"github.com/labstack/echo"
 )
 
-func list(c context.Context) {
+func index(c echo.Context) error {
+	return nil
+}
+
+func list(c echo.Context) error {
+
 	var (
 		err   error
 		t     string
 		k     []string
 		level int64
 	)
-	result := c.Result()
-	params := c.Request().Form
 
-	content := params.Get("content")
+	content := c.FormValue("content")
 	if content == "" {
-		log.Error("strconv.ParseInt(%s) error(%v)", content, err)
-		result["code"] = ecode.RequestErr
-		return
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
+
 	}
-	flag := params.Get("flag")
+	flag := c.FormValue("flag")
 	if content == "" {
-		log.Error("strconv.ParseInt(%s) error(%v)", flag, err)
-		result["code"] = ecode.RequestErr
-		return
-
+		return c.JSON(model.OutputRet(model.Notdefinitionparams))
+	}
+	if t, level, k, err = svr.KeywordFilter(content, flag); err != nil {
+		return c.JSON(model.OutputRet(model.RetErr))
 	}
 
-	if t, level, k, err = svr.KeywordFilter(c, content, flag); err != nil {
-		result["code"] = err
-		return
-	}
-
-	result["data"] = map[string]interface{}{
+	result := map[string]interface{}{
 		"content": t,
 		"keyword": k,
 		"level":   level,
 	}
-	result["code"] = ecode.OK
-	return
+	return c.JSON(model.OutputRet(model.Success, result))
 }

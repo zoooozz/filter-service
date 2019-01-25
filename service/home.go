@@ -1,10 +1,6 @@
 package service
 
-import (
-	"context"
-)
-
-func (s *service) KeywordFilter(c context.Context, content, flag string) (t string, level int64, k []string, err error) {
+func (s *service) KeywordFilter(content, flag string) (t string, level int64, k []string, err error) {
 
 	var (
 		_emplyRs = []string{}

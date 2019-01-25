@@ -1,32 +1,31 @@
 package service
 
 import (
-	"context"
 	"filter-service/actire"
 	"filter-service/model"
-	"golang-kit/log"
+	"github.com/donnie4w/go-logger/logger"
 )
 
-func (s *service) initLoadBusiness() (ts []*model.Business, err error) {
+func (s *service) initLoadBusiness() (rs []*model.Business, err error) {
 
-	if ts, err = s.dao.GetByBusinessList(context.TODO()); err != nil {
+	if rs, err = s.dao.GetByBusinessList(); err != nil {
 		panic(err)
 	}
-	s.businessMap = make(map[string]struct{}, len(ts))
-	for _, t := range ts {
+	s.businessMap = make(map[string]struct{}, len(rs))
+	for _, t := range rs {
 		s.businessMap[t.Flag] = struct{}{}
 	}
-	s.filterMap = make(map[string]*model.Filter, len(ts))
+	s.filterMap = make(map[string]*model.Filter, len(rs))
 	return
 }
 
 func (s *service) initLoadKeyword() {
+
 	filters := make(map[string]*model.Filter, len(s.businessMap))
 	for business, _ := range s.businessMap {
 		filters[business] = &model.Filter{}
-		keywords, err := s.dao.GetByrelationKeyword(context.TODO(), business)
+		keywords, err := s.dao.GetByrelationKeyword(business)
 		if err != nil {
-			log.Error("s.dao.Rule(%s) err(%v)", business, err)
 			return
 		}
 		var (
@@ -39,6 +38,7 @@ func (s *service) initLoadKeyword() {
 		filters[business].Matcher = matcher
 	}
 	s.filterMap = filters
+	logger.Info("重新更新敏感词")
 	return
 
 }
